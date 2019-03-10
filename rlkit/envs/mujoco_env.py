@@ -7,8 +7,9 @@ from gym.envs.mujoco import mujoco_env
 
 from rlkit.core.serializable import Serializable
 
-ENV_ASSET_DIR = os.path.join(os.path.dirname(__file__), 'assets')
-
+# MICHAEL HACKED
+# ENV_ASSET_DIR = os.path.join(os.path.dirname(__file__), 'assets')
+ENV_ASSET_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets')
 
 class MujocoEnv(mujoco_env.MujocoEnv, Serializable):
     """
