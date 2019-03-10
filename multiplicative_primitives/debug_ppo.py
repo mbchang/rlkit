@@ -115,23 +115,23 @@ class Experiment():
         print('Episode {}\tLast return: {:.2f}\tAverage return: {:.2f}'.format(
             i_episode, ret, running_return))
 
-def experiment(agent, env):
-    run_avg = RunningAverage()
-    returns = []
-    for i_episode in range(1, 100001):
-        ret, t = sample_trajectory(agent, env)
-        running_reward = run_avg.update_variable('reward', ret)
-        if i_episode % 1000 == 0:
-            print('Update Agent')
-            agent.improve()
-        if i_episode % args.log_interval == 0:
-            print('Episode {}\tLast return: {:.2f}\tAverage return: {:.2f}'.format(
-                i_episode, ret, running_reward))
-        if i_episode % (10*args.log_interval) == 0:
-            returns.append(running_reward)
-            pickle.dump(returns, open('log.p', 'wb'))  # this only starts logging after the first improve_every though!
+# def experiment(agent, env):
+#     run_avg = RunningAverage()
+#     returns = []
+#     for i_episode in range(1, 100001):
+#         ret, t = sample_trajectory(agent, env)
+#         running_reward = run_avg.update_variable('reward', ret)
+#         if i_episode % 1000 == 0:
+#             print('Update Agent')
+#             agent.improve()
+#         if i_episode % args.log_interval == 0:
+#             print('Episode {}\tLast return: {:.2f}\tAverage return: {:.2f}'.format(
+#                 i_episode, ret, running_reward))
+#         if i_episode % (10*args.log_interval) == 0:
+#             returns.append(running_reward)
+#             pickle.dump(returns, open('log.p', 'wb'))  # this only starts logging after the first improve_every though!
 
-def main():
+def main(args):
     args = process_args(args)
     env = gym.make('CartPole-v0')
     # env = gym.make('Ant-v2')
@@ -153,4 +153,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    main(args)
