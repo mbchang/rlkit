@@ -14,6 +14,7 @@ class AntGoalEnv(MultitaskAntEnv):
         xposafter = np.array(self.get_body_com("torso"))
 
         goal_reward = -np.sum(np.abs(xposafter[:2] - self._goal)) # make it happy, not suicidal
+        # goal_reward = np.exp(-np.square(xposafter[:2] - self._goal))
 
         ctrl_cost = .1 * np.square(action).sum()
         contact_cost = 0.5 * 1e-3 * np.sum(
