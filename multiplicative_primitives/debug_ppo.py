@@ -6,14 +6,14 @@ import sys
 from itertools import count
 from collections import namedtuple
 
+import operator
 import pickle
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
-
-from log import RunningAverage
+from log import RunningAverage, create_logger
 from rb import Memory
 from ppo import PPO
 from agent import BaseActionAgent
@@ -47,6 +47,12 @@ parser.add_argument('--max-iters', type=int, default=int(1e7),
                     help='number of episodes total (default: 1e7)')
 parser.add_argument('--debug', action='store_true',
                     help='debug')
+parser.add_argument('--resume', action='store_true',
+                    help='resume')
+parser.add_argument('--transfer', action='store_true',
+                    help='transfer')
+parser.add_argument('--outputdir', type=str, default='runs',
+                    help='outputdir')
 args = parser.parse_args()
 
 torch.manual_seed(args.seed)
@@ -97,7 +103,7 @@ class Experiment():
         returns = []
         for i_episode in range(1, self.args.max_iters+1):
             ret, t = self.sample_trajectory()
-            running_return = self.run_avg.update_variable('reward', ret)
+            running_return = self.run_avg.update_variable('running_return', ret)
             if i_episode % self.args.update_every == 0:
                 print('Update Agent')
                 self.agent.improve()
@@ -115,8 +121,18 @@ class Experiment():
         print('Episode {}\tLast return: {:.2f}\tAverage return: {:.2f}'.format(
             i_episode, ret, running_return))
 
+def build_expname(args):
+    expname = 'debug'
+    return expname
+
+def initialize_logger(logger):
+    logger.add_variables(['episodes', 'running_return'])
+    logger.add_metric('running_return', -np.inf, operator.ge)
+
 def main(args):
     args = process_args(args)
+    logger = create_logger(build_expname, args)
+    initialize_logger(logger)
     env = gym.make('CartPole-v0')
     # env = gym.make('Ant-v2')
     # env = AntGoalEnv(n_tasks=1, use_low_gear_ratio=True)
