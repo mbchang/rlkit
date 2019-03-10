@@ -1,7 +1,54 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from torch.distributions import Categorical
 
 from functions import Trunk
+
+class Policy(nn.Module):
+    def __init__(self, dims):
+        super(Policy, self).__init__()
+        self.dims = dims
+        self.layers = nn.ModuleList()
+        for i in range(len(self.dims[:-2])):
+            self.layers.append(nn.Linear(self.dims[i], self.dims[i+1]))
+        self.action_head = nn.Linear(self.dims[-2], self.dims[-1])
+
+    def forward(self, state):
+        for layer in self.layers:
+            state = F.relu(layer(state))
+        action_scores = self.action_head(state)
+        action_dist = F.softmax(action_scores, dim=-1)
+        return action_dist
+
+    def select_action(self, state):
+        # volatile
+        action_dist = self.forward(state)
+        m = Categorical(action_dist)
+        action = m.sample()
+        return action.data
+
+    def get_log_prob(self, state, action):
+        # not volatile
+        action_dist = self.forward(state)
+        m = Categorical(action_dist)
+        log_prob = m.log_prob(action)
+        return log_prob
+
+class ValueFn(nn.Module):
+    def __init__(self, dims):
+        super(ValueFn, self).__init__()
+        self.dims = dims
+        self.layers = nn.ModuleList()
+        for i in range(len(self.dims[:-2])):
+            self.layers.append(nn.Linear(self.dims[i], self.dims[i+1]))
+        self.value_head = nn.Linear(self.dims[-2], self.dims[-1])
+
+    def forward(self, state):
+        for layer in self.layers:
+            state = F.relu(layer(state))
+        state_values = self.value_head(state)
+        return state_values
 
 class BasePolicy(nn.Module):
     def __init__(self):
