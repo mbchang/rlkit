@@ -18,7 +18,10 @@ from rb import Memory
 from ppo import PPO
 from agent import BaseActionAgent
 
-
+import sys
+sys.path.append('../')
+from rlkit.envs.wrappers import NormalizedBoxEnv
+from rlkit.envs.ant_goal import AntGoalEnv
 
 parser = argparse.ArgumentParser(description='PyTorch ppo example')
 parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
@@ -110,10 +113,6 @@ def sample_trajectory(agent, env):
 def main():
     # env = gym.make('CartPole-v0')
     # env = gym.make('Ant-v2')
-    import sys
-    sys.path.append('../')
-    from rlkit.envs.wrappers import NormalizedBoxEnv
-    from rlkit.envs.ant_goal import AntGoalEnv
     env = AntGoalEnv(n_tasks=1, use_low_gear_ratio=True)
     tasks = env.get_all_task_idx()
     env.seed(args.seed)
@@ -130,7 +129,6 @@ def main():
     run_avg = RunningAverage()
     returns = []
     for i_episode in range(1, 100001):
-    # for i_episode in range(1, 501):
         ret, t = sample_trajectory(agent, env)
         running_reward = run_avg.update_variable('reward', ret)
         if i_episode % 1000 == 0:
@@ -142,21 +140,6 @@ def main():
         if i_episode % (10*args.log_interval) == 0:
             returns.append(running_reward)
             pickle.dump(returns, open('log.p', 'wb'))  # this only starts logging after the first improve_every though!
-
-    # np.save(returns, 'plot.npy')
-
-
-# def experiment(variant):
-#    task_params = variant[‘task_params’]
-#    env = NormalizedBoxEnv(AntGoalEnv(n_tasks=task_params[‘n_tasks’], use_low_gear_ratio=task_params[‘low_gear’]))
-#    ptu.set_gpu_mode(variant[‘use_gpu’], variant[‘gpu_id’])
-
-#    tasks = env.get_all_task_idx()
-
-#    obs_dim = int(np.prod(env.observation_space.shape))
-#    action_dim = int(np.prod(env.action_space.shape))
-
-
 
 
 if __name__ == '__main__':
