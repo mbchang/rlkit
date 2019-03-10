@@ -3,7 +3,21 @@ import torch.nn as nn
 
 from functions import Trunk
 
-class CompositePolicy(nn.Module):
+class BasePolicy(nn.Module):
+    def __init__(self):
+        super(BaseGaussianPolicy, self).__init__()
+
+    def select_action(self, state):
+        dist = self.forward(state)
+        action = dist.sample()
+        return action.data
+
+    def get_log_prob(self, state, action):
+        dist = self.network(state)
+        log_prob = dist.log_prob(action)
+        return log_prob
+
+class CompositePolicy(BasePolicy):
     def __init__(self, weightdims, primitives):
         super(CompositePolicy, self).__init__()
         self.weightdims = weightdims
@@ -34,19 +48,7 @@ class CompositePolicy(nn.Module):
         dist = MultivariateNormal(loc=composite_mu, scale_tril=torch.diag_embed(composite_std))
         return dist
 
-    # Note that this is the same as PrimitivePolicy
-    def select_action(self, state):
-        dist = self.forward(state)
-        action = dist.sample()
-        return action.data  # is this action.data or action?
-
-    # Note that this is the same as PrimitivePolicy
-    def get_log_prob(self, state, action):
-        dist = self.network(state)
-        log_prob = dist.log_prob(action)
-        return log_prob
-
-class PrimitivePolicy(nn.Module):
+class PrimitivePolicy(BasePolicy):
     def __init__(self, dims):
         super(PrimitivePolicy, self).__init__()
         self.dims = dims
@@ -59,16 +61,6 @@ class PrimitivePolicy(nn.Module):
         mu, std = self.mu_head(h), torch.exp(self.logstd_head(h))
         dist = MultivariateNormal(loc=mu, scale_tril=torch.diag_embed(std))
         return dist
-
-    def select_action(self, state):
-        dist = self.forward(state)
-        action = dist.sample()
-        return action.data  # is this action.data or action?
-
-    def get_log_prob(self, state, action):
-        dist = self.network(state)
-        log_prob = dist.log_prob(action)
-        return log_prob
 
 class ValueFn(nn.Module):
     def __init__(self, dims):
