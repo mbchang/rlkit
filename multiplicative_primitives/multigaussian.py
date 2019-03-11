@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Categorical
+from torch.distributions.multivariate_normal import MultivariateNormal
 
 from functions import Trunk
 
@@ -26,6 +27,7 @@ class Policy(nn.Module):
         action_dist = self.forward(state)
         m = Categorical(action_dist)
         action = m.sample()
+        print('action', action)
         return action.data
 
     def get_log_prob(self, state, action):
@@ -52,7 +54,7 @@ class ValueFn(nn.Module):
 
 class BasePolicy(nn.Module):
     def __init__(self):
-        super(BaseGaussianPolicy, self).__init__()
+        super(BasePolicy, self).__init__()
 
     def select_action(self, state):
         dist = self.forward(state)
@@ -60,7 +62,7 @@ class BasePolicy(nn.Module):
         return action.data
 
     def get_log_prob(self, state, action):
-        dist = self.network(state)
+        dist = self.forward(state)
         log_prob = dist.log_prob(action)
         return log_prob
 

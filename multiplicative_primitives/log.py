@@ -12,7 +12,6 @@ plt.style.use('ggplot')
 def printf(logger, args, string):
     if args.printf:
         f = open(logger.logdir+'.txt', 'a')
-        # print(>>f, string)
         print(string, file=f)
     else:
         print(string)
@@ -28,18 +27,12 @@ def mkdirp(logdir):
         except FileExistsError:
             overwrite = 'o'
             while overwrite not in ['y', 'n']:
-                overwrite = input('{} exists. Overwrite? [y/n]'.format(logdir))
+                overwrite = input('{} exists. Overwrite? [y/n] '.format(logdir))
             if overwrite == 'y':
                 shutil.rmtree(logdir)
                 os.mkdir(logdir)
             else:
                 raise FileExistsError
-
-def to_cpu(state_dict):
-    cpu_dict = {}
-    for k,v in state_dict.items():
-        cpu_dict[k] = v.cpu()
-    return cpu_dict
 
 class RunningAverage(object):
     def __init__(self):
@@ -65,8 +58,6 @@ class Logger(object):
         super(Logger, self).__init__()
         self.data = {}
         self.metrics = {}
-
-        self.unique_problems = {}
 
         self.expname = expname
         self.logdir = logdir
@@ -98,7 +89,6 @@ class Logger(object):
         saved_args.resume = resume
         self.set_resumed_from(self.resumed_from)
         return saved_args
-
 
     def load_params_transfer(self, transfer, resume):
         """ saved_args is mutable! """
@@ -144,19 +134,6 @@ class Logger(object):
     def add_metric(self, name, initial_val, comparator):
         self.metrics[name] = {'value': initial_val, 'cmp': comparator}
 
-    def add_unique_sets(self, names):
-        for name in names:
-            self.add_unique_set(name)
-
-    def add_unique_set(self, name):
-        self.unique_problems[name] = set()
-
-    def update_unique_set(self, name, key):
-        self.unique_problems[name].add(key)
-
-    def get_unique_set_size(self, name):
-        return len(self.unique_problems[name])
-
     def save_checkpoint(self, ckpt_data, current_metrics, i_episode, args, ext):
         old_ckpts = [x for x in os.listdir(self.logdir) if '.pth.tar' in x and 'best' in x and ext in x]
         assert len(old_ckpts) <= len(current_metrics)
@@ -183,69 +160,17 @@ class Logger(object):
         plt.savefig(os.path.join(self.logdir,'{}.png'.format(fname)))
         plt.clf()
 
-    def add_variable_hist(self, name, bins):
-        self.data[name+'_hist'] = {'values': [], 'bins': bins}
-
-    def update_variable_hist(self, name, value):
-        self.data[name+'_hist']['values'].append(value)
-
-    def plot_hist(self, name, fname):
-        plt.hist(self.data[name+'_hist']['values'], bins=self.data[name+'_hist']['bins'])
-        plt.savefig(os.path.join(self.logdir,'{}.png'.format(fname)))
-        plt.close()
-
-    def add_variable_bar(self, name, num_bars, labels):
-        self.data[str(name)+'_bar'] = {'values': [0 for j in range(num_bars)], 'labels': labels}
-    
-    def increment_variable_bar(self, name, idx, incr):
-        self.data[str(name)+'_bar']['values'][idx] += incr
-
-    def plot_bar(self, name, fname):
-        barplot(height=np.array(self.data[str(name)+'_bar']['values']), 
-                labels=self.data[str(name)+'_bar']['labels'],
-                fname=os.path.join(self.logdir,'{}.png'.format(fname)))
-
     def to_cpu(self, state_dict):
         cpu_dict = {}
-        for k,v in state_dict.iteritems():
+        for k,v in state_dict.items():
             cpu_dict[k] = v.cpu()
         return cpu_dict
-
-    def saveckpt(self, filename, ckpt):
-        save_path = os.path.join(self.logdir, filename)
-        state = {
-
-                # 'model': {k: v.state_dict() for k,v in agent.model.iteritems()},
-                # 'optimizer': {k: v.state_dict() for k,v in agent.optimizer.iteritems()},
-
-            'model': {k: self.to_cpu(v) for k,v in ckpt['model'].iteritems()},
-            'episode': ckpt['episode'],
-            'running_reward': ckpt['running_reward'],
-            'logger_data': ckpt['logger_data'],
-            'resumed_from': self.resumed_from
-        }
-        if type(ckpt['optimizer']) is list:
-            state['optimizer'] = [o.state_dict() for o in ckpt['optimizer']]
-        else:
-            state['optimizer'] = ckpt['optimizer'].state_dict()
-        torch.save(state, save_path)
-        return save_path
 
     def save(self, name):
         pickle.dump(self.data, open(os.path.join(self.logdir,'{}.p'.format(name)), 'wb'))
 
     def load(self, name):
         self.data = pickle.load(open(os.path.join(self.logdir,'{}.p'.format(name)), 'rb'))
-
-    def visualize_transformations(self, fname, selected_states, selected_actions, visualize=False):
-        states_np = map(lambda x: x[0], map(convert_image_np, map(lambda x: x.cpu(), selected_states)))
-        f, ax = plt.subplots(1, len(states_np))
-        for i in range(len(states_np)):
-            ax[i].imshow(states_np[i])
-            if i > 0:
-                ax[i].set_title('After action {}'.format(selected_actions[i-1]), fontsize=10)
-        plt.savefig(os.path.join(self.logdir, '{}.png'.format(fname)))
-        plt.close()
 
 def create_logger(build_expname, args):
     if args.resume:

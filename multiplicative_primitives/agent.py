@@ -57,7 +57,7 @@ class BaseActionAgent(nn.Module):
             action = self.policy.select_action(state.detach())
         log_prob = self.policy.get_log_prob(state.detach(), action)  # not sure about the gradients here. Detach?
         value = self.valuefn(state.detach())  # detach?
-        return action.item(), log_prob, value
+        return action, log_prob, value
 
     def store_transition(self, transition):
         self.buffer.push(

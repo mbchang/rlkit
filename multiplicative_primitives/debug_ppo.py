@@ -1,5 +1,6 @@
 import argparse
 import gym
+from gym.wrappers import Monitor
 import numpy as np
 import os
 import sys
@@ -13,11 +14,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
-from log import RunningAverage, create_logger, to_cpu
+from log import RunningAverage, create_logger
 from rb import Memory
 from ppo import PPO
 from agent import BaseActionAgent
-from multigaussian import Policy, ValueFn
+from multigaussian import Policy, ValueFn, PrimitivePolicy
 
 import sys
 sys.path.append('../')
@@ -35,12 +36,16 @@ parser.add_argument('--gpu-index', type=int, default=0,
                     help='gpu_index (default: 0)')
 parser.add_argument('--render', action='store_true',
                     help='render the environment')
+parser.add_argument('--hdim', type=int, default=256,
+                    help='hdim (default: 256)')
 parser.add_argument('--log-interval', type=int, default=100, metavar='I',
                     help='interval between training status logs (default: 10)')
 parser.add_argument('--save-every', type=int, default=1000,
                     help='interval between training status saves (default: 1000)')
 parser.add_argument('--update-every', type=int, default=1000,
                     help='interval between updating agent (default: 1000)')
+parser.add_argument('--visualize-every', type=int, default=1000,
+                    help='interval between visualizing agent (default: 1000)')
 parser.add_argument('--maxeplen', type=int, default=100,
                     help='length of an episode (default: 100)')
 parser.add_argument('--max-iters', type=int, default=int(1e7),
@@ -69,6 +74,7 @@ def process_args(args):
         args.log_interval = 5
         args.save_every = 25
         args.update_every = 25
+        args.visualize_every = 25
     return args
 
 class Experiment():
@@ -84,7 +90,7 @@ class Experiment():
         state = self.env.reset()
         for t in range(self.args.maxeplen):  # Don't infinite loop while learning
             action, log_prob, value = self.agent(torch.from_numpy(state).float())
-            state, reward, done, _ = self.env.step(action)
+            state, reward, done, _ = self.env.step(action.numpy())
             if args.render:
                 self.env.render()
             mask = 0 if done else 1
@@ -118,13 +124,15 @@ class Experiment():
                 }
                 # the below may be redundant
                 ckpt = {
-                    'agent': to_cpu(self.agent.state_dict()),
+                    'agent': self.logger.to_cpu(self.agent.state_dict()),
                     'episode': i_episode,
                     'running_return': running_return
                 }
                 self.logger.save_checkpoint(ckpt, current_metrics, i_episode, args, '_train')
                 self.logger.plot('episode', 'running_return', self.logger.expname+'_running_return')
                 self.logger.save(self.logger.expname)
+            if i_episode % self.args.visualize_every == 0:
+                pass
 
     def log(self, i_episode, ret, running_return):
         print('Episode {}\tLast return: {:.2f}\tAverage return: {:.2f}'.format(
@@ -142,18 +150,19 @@ def main(args):
     args = process_args(args)
     logger = create_logger(build_expname, args)
     initialize_logger(logger)
-    env = gym.make('CartPole-v0')
+    # env = gym.make('CartPole-v0')
     # env = gym.make('Ant-v2')
-    # env = AntGoalEnv(n_tasks=1, use_low_gear_ratio=True)
-    # tasks = env.get_all_task_idx()
+    env = AntGoalEnv(n_tasks=10, use_low_gear_ratio=True)
+    tasks = env.get_all_task_idx()
+    # env = Monitor(env, './video')
     env.seed(args.seed)
     discrete = type(env.action_space) == gym.spaces.discrete.Discrete
     obs_dim = env.observation_space.shape[0]
     act_dim = env.action_space.n if discrete else env.action_space.shape[0]
-    hdim = 256
+    policy = Policy if discrete else PrimitivePolicy
     agent = BaseActionAgent(
-        policy=Policy(dims=[obs_dim, hdim, hdim, act_dim]), 
-        valuefn=ValueFn(dims=[obs_dim, hdim, hdim, 1]), 
+        policy=policy(dims=[obs_dim, args.hdim, args.hdim, act_dim]), 
+        valuefn=ValueFn(dims=[obs_dim, args.hdim, args.hdim, 1]), 
         id=0, 
         device=device, 
         args=args).to(device)
