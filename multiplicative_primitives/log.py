@@ -1,7 +1,21 @@
 import copy
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 import os
 import pickle
 import shutil
+import torch
+
+plt.style.use('ggplot')
+
+def printf(logger, args, string):
+    if args.printf:
+        f = open(logger.logdir+'.txt', 'a')
+        # print(>>f, string)
+        print(string, file=f)
+    else:
+        print(string)
 
 def mkdirp(logdir):
     if '_debug' in logdir:
@@ -20,6 +34,12 @@ def mkdirp(logdir):
                 os.mkdir(logdir)
             else:
                 raise FileExistsError
+
+def to_cpu(state_dict):
+    cpu_dict = {}
+    for k,v in state_dict.items():
+        cpu_dict[k] = v.cpu()
+    return cpu_dict
 
 class RunningAverage(object):
     def __init__(self):

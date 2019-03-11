@@ -13,7 +13,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
-from log import RunningAverage, create_logger
+from log import RunningAverage, create_logger, to_cpu
 from rb import Memory
 from ppo import PPO
 from agent import BaseActionAgent
@@ -51,6 +51,8 @@ parser.add_argument('--resume', action='store_true',
                     help='resume')
 parser.add_argument('--transfer', action='store_true',
                     help='transfer')
+parser.add_argument('--printf', action='store_true',
+                    help='printf')
 parser.add_argument('--outputdir', type=str, default='runs',
                     help='outputdir')
 args = parser.parse_args()
@@ -70,11 +72,11 @@ def process_args(args):
     return args
 
 class Experiment():
-    def __init__(self, agent, env, args):
+    def __init__(self, agent, env, logger, args):
         self.agent = agent
         self.env = env
         self.run_avg = RunningAverage()
-        self.logger = None
+        self.logger = logger
         self.args = args
 
     def sample_trajectory(self):
@@ -100,22 +102,29 @@ class Experiment():
         return returns, t
 
     def experiment(self):
-        returns = []
         for i_episode in range(1, self.args.max_iters+1):
+            self.logger.update_variable('episode', i_episode)
             ret, t = self.sample_trajectory()
             running_return = self.run_avg.update_variable('running_return', ret)
+            self.logger.update_variable('running_return', running_return)
             if i_episode % self.args.update_every == 0:
                 print('Update Agent')
                 self.agent.improve()
             if i_episode % self.args.log_interval == 0:
                 self.log(i_episode, ret, running_return)
             if i_episode % self.args.save_every == 0:
-                # this should just take the logger into account.
-                print(running_return)
-                print(self.run_avg.data)
-
-                returns.append(running_return)
-                pickle.dump(returns, open('log.p', 'wb'))  # this only starts logging after the first improve_every though!
+                current_metrics = {
+                    'running_return': running_return
+                }
+                # the below may be redundant
+                ckpt = {
+                    'agent': to_cpu(self.agent.state_dict()),
+                    'episode': i_episode,
+                    'running_return': running_return
+                }
+                self.logger.save_checkpoint(ckpt, current_metrics, i_episode, args, '_train')
+                self.logger.plot('episode', 'running_return', self.logger.expname+'_running_return')
+                self.logger.save(self.logger.expname)
 
     def log(self, i_episode, ret, running_return):
         print('Episode {}\tLast return: {:.2f}\tAverage return: {:.2f}'.format(
@@ -126,7 +135,7 @@ def build_expname(args):
     return expname
 
 def initialize_logger(logger):
-    logger.add_variables(['episodes', 'running_return'])
+    logger.add_variables(['episode', 'running_return'])
     logger.add_metric('running_return', -np.inf, operator.ge)
 
 def main(args):
@@ -148,7 +157,7 @@ def main(args):
         id=0, 
         device=device, 
         args=args).to(device)
-    exp = Experiment(agent, env, args)
+    exp = Experiment(agent, env, logger, args)
     exp.experiment()
 
 
