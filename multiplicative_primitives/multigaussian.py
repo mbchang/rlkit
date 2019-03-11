@@ -27,7 +27,6 @@ class Policy(nn.Module):
         action_dist = self.forward(state)
         m = Categorical(action_dist)
         action = m.sample()
-        print('action', action)
         return action.data
 
     def get_log_prob(self, state, action):

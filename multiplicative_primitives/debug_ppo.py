@@ -85,14 +85,13 @@ class Experiment():
         self.logger = logger
         self.args = args
 
-    def sample_trajectory(self):
+    def sample_trajectory(self, render):
+        # print('new_trajectory')
         episode_data = []
         state = self.env.reset()
         for t in range(self.args.maxeplen):  # Don't infinite loop while learning
             action, log_prob, value = self.agent(torch.from_numpy(state).float())
             state, reward, done, _ = self.env.step(action.numpy())
-            if args.render:
-                self.env.render()
             mask = 0 if done else 1
             e = {'state': state,
                  'action': action,
@@ -100,17 +99,22 @@ class Experiment():
                  'mask': mask,
                  'reward': reward,
                  'value': value}
+            if render:
+                frame = self.env.render(mode='rgb_array')
+                e['frame'] = frame
             episode_data.append(e)
             self.agent.store_transition(e)
             if done:
                 break
-        returns = sum([e['reward'] for e in episode_data])
-        return returns, t
+        return episode_data
 
     def experiment(self):
         for i_episode in range(1, self.args.max_iters+1):
+            visualize = i_episode % self.args.visualize_every == 0
             self.logger.update_variable('episode', i_episode)
-            ret, t = self.sample_trajectory()
+            # ret, t = self.sample_trajectory()
+            episode_data = self.sample_trajectory(render=visualize)
+            ret = returns = sum([e['reward'] for e in episode_data])
             running_return = self.run_avg.update_variable('running_return', ret)
             self.logger.update_variable('running_return', running_return)
             if i_episode % self.args.update_every == 0:
@@ -131,8 +135,10 @@ class Experiment():
                 self.logger.save_checkpoint(ckpt, current_metrics, i_episode, args, '_train')
                 self.logger.plot('episode', 'running_return', self.logger.expname+'_running_return')
                 self.logger.save(self.logger.expname)
-            if i_episode % self.args.visualize_every == 0:
-                pass
+            if visualize:
+                frames = np.array([e['frame'] for e in episode_data])
+                # save to disk
+                print(frames.shape)
 
     def log(self, i_episode, ret, running_return):
         print('Episode {}\tLast return: {:.2f}\tAverage return: {:.2f}'.format(
@@ -150,10 +156,10 @@ def main(args):
     args = process_args(args)
     logger = create_logger(build_expname, args)
     initialize_logger(logger)
-    # env = gym.make('CartPole-v0')
+    env = gym.make('CartPole-v0')
     # env = gym.make('Ant-v2')
-    env = AntGoalEnv(n_tasks=10, use_low_gear_ratio=True)
-    tasks = env.get_all_task_idx()
+    # env = AntGoalEnv(n_tasks=10, use_low_gear_ratio=True)
+    # tasks = env.get_all_task_idx()
     # env = Monitor(env, './video')
     env.seed(args.seed)
     discrete = type(env.action_space) == gym.spaces.discrete.Discrete
