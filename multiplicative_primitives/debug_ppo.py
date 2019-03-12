@@ -1,18 +1,23 @@
 import argparse
 import gym
 from gym.wrappers import Monitor
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 import sys
 from itertools import count
 from collections import namedtuple
 
+from moviepy.editor import ImageSequenceClip
 import operator
 import pickle
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import time
 
 from log import RunningAverage, create_logger
 from rb import Memory
@@ -62,6 +67,7 @@ parser.add_argument('--outputdir', type=str, default='runs',
                     help='outputdir')
 args = parser.parse_args()
 
+np.random.seed(args.seed)
 torch.manual_seed(args.seed)
 device=torch.device('cuda', index=args.gpu_index) if torch.cuda.is_available() else torch.device('cpu')
 
@@ -70,7 +76,7 @@ eps = np.finfo(np.float32).eps.item()
 def process_args(args):
     if args.debug:
         args.max_iters = 100
-        args.maxeplen = 50
+        args.maxeplen = 100
         args.log_interval = 5
         args.save_every = 25
         args.update_every = 25
@@ -91,15 +97,16 @@ class Experiment():
         state = self.env.reset()
         for t in range(self.args.maxeplen):  # Don't infinite loop while learning
             action, log_prob, value = self.agent(torch.from_numpy(state).float())
-            state, reward, done, _ = self.env.step(action.numpy())
+            state, reward, done, _ = self.env.step(action.to('cpu').numpy())
             mask = 0 if done else 1
             e = {'state': state,
-                 'action': action,
+                 'action': action.to('cpu'),
                  'logprob': log_prob,
                  'mask': mask,
                  'reward': reward,
                  'value': value}
             if render:
+                # frame = plt.imsave('{}.png'.format(t), self.env.render(mode='rgb_array'))
                 frame = self.env.render(mode='rgb_array')
                 e['frame'] = frame
             episode_data.append(e)
@@ -137,8 +144,9 @@ class Experiment():
                 self.logger.save(self.logger.expname)
             if visualize:
                 frames = np.array([e['frame'] for e in episode_data])
-                # save to disk
-                print(frames.shape)
+                clip = ImageSequenceClip(list(frames), fps=30).resize(0.5)
+                clip.write_gif('{}/{}.gif'.format(self.logger.logdir, i_episode), fps=30)
+            del episode_data
 
     def log(self, i_episode, ret, running_return):
         print('Episode {}\tLast return: {:.2f}\tAverage return: {:.2f}'.format(
@@ -156,9 +164,9 @@ def main(args):
     args = process_args(args)
     logger = create_logger(build_expname, args)
     initialize_logger(logger)
-    env = gym.make('CartPole-v0')
+    # env = gym.make('CartPole-v0')
     # env = gym.make('Ant-v2')
-    # env = AntGoalEnv(n_tasks=10, use_low_gear_ratio=True)
+    env = AntGoalEnv(n_tasks=1, use_low_gear_ratio=True)
     # tasks = env.get_all_task_idx()
     # env = Monitor(env, './video')
     env.seed(args.seed)
